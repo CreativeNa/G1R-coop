@@ -49,6 +49,15 @@ if (Test-Path $log) {
     Set-Content (Join-Path $work "coopdll.log") (($logLines | ForEach-Object { Scrub $_ }) -join "`n") -Encoding UTF8
 } else { "no log found at $log" | Set-Content (Join-Path $work "coopdll.log.MISSING.txt") }
 
+# ---- launcher and install logs: that is where a failed connection shows up ----
+$logDir = Join-Path $env:LOCALAPPDATA 'G1RCoop\logs'
+foreach ($pair in @(@((Join-Path $logDir 'launcher.log'), 'launcher.log'), @((Join-Path $logDir 'install.log'), 'install.log'))) {
+    $src = $pair[0]; $name = $pair[1]
+    if (Test-Path -LiteralPath $src) {
+        $rows = @(Get-Content -LiteralPath $src -Tail 2000 -ErrorAction SilentlyContinue)
+        Set-Content (Join-Path $work $name) (($rows | ForEach-Object { Scrub $_ }) -join "`n") -Encoding UTF8
+    }
+}
 # ---- role and session context (from the launcher log) ----
 $role = "unknown"
 $launchStart = ""
