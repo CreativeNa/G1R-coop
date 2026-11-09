@@ -1,0 +1,50 @@
+﻿name: Сообщение о проблеме
+description: Что-то не работает или работает неправильно
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Перед отправкой приложите архив `report_*.zip` (кнопка «Собрать отчёт.bat» в папке мода).
+        Для проблем со связью нужны отчёты **с обоих ПК**.
+  - type: input
+    id: version
+    attributes:
+      label: Версия мода
+      placeholder: 0.5.3
+    validations: { required: true }
+  - type: dropdown
+    id: role
+    attributes:
+      label: Роль
+      options: [Хост, Гость, Оба ПК, Не подключился]
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Что делали
+      placeholder: 1. Запустил хост... 2. Гость нажал Join...
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что ожидали и что получилось
+    validations: { required: true }
+  - type: input
+    id: when
+    attributes:
+      label: Время (ЧЧ:ММ) и что было на экране
+  - type: checkboxes
+    id: attached
+    attributes:
+      label: Что приложено
+      options:
+        - label: report_*.zip с хоста
+        - label: report_*.zip с гостя
+        - label: скриншот
+        - label: BETA_REPORT_TEMPLATE.md заполнен
+  - type: input
+    id: system
+    attributes:
+      label: Windows и сборка игры
+      placeholder: Windows 10 22H2, игра 1.2

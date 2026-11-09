@@ -127,6 +127,20 @@ if ($fps.Count) { [void]$sum.Add(("  fps samples {0}: min {1}, median {2}" -f $f
 $last = @($logLines | Where-Object { $_ -match "EXCEPTION|AV at " } | Select-Object -Last 5)
 if ($last.Count) { [void]$sum.Add(""); [void]$sum.Add("Last faults:"); $last | ForEach-Object { [void]$sum.Add("  " + (Scrub $_)) } }
 
+
+# ---- machine-readable summary: an AI or a script triages this without parsing the text ----
+$json = [ordered]@{
+    version      = $(if (Test-Path (Join-Path $b 'VERSION.txt')) { (Get-Content (Join-Path $b 'VERSION.txt') -Raw).Trim() } elseif ($verFile -and (Test-Path $verFile)) { (Get-Content $verFile -Raw).Trim() } else { '' })
+    role         = $role
+    gameBuild    = $(if ($exe) { (Get-Item $exe).Length } else { 0 })
+    language     = $(if ($script:LangCode) { $script:LangCode } else { '' })
+    errors       = @($logLines | Where-Object { $_ -match 'EXCEPTION|AV at ' }).Count
+    contactLines = @($logLines | Where-Object { $_ -match 'contact 1' }).Count
+    lastLines    = @($logLines | Select-Object -Last 5)
+    note         = $Note
+}
+$json | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $work 'report.json') -Encoding UTF8
+
 Set-Content (Join-Path $work "summary.txt") (($sum | ForEach-Object { Scrub ([string]$_) }) -join "`r`n") -Encoding UTF8
 $zip = Join-Path $OutDir ("report_" + $role + "_" + $stamp + ".zip")
 Compress-Archive -Path "$work\*" -DestinationPath $zip -Force
