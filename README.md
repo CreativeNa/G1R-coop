@@ -55,6 +55,7 @@ computer name and user name are replaced automatically.
 | [BUGS.md](docs/BUGS.md) | known issues |
 | [releases/0.5.3.md](docs/releases/0.5.3.md) | notes for the current build |
 | [RELEASE_INTEGRITY.md](docs/RELEASE_INTEGRITY.md) | how to verify the build and hashes |
+| [AI_TRIAGE.md](docs/AI_TRIAGE.md) | how a report is triaged without the owner |
 
 ## Status
 
@@ -120,6 +121,7 @@ The chapter is not synchronised; known visual defects are listed in `BUGS.md`.
 | [BUGS.md](docs/BUGS.md) | известные проблемы |
 | [releases/0.5.3.md](docs/releases/0.5.3.md) | заметки к текущей сборке |
 | [RELEASE_INTEGRITY.md](docs/RELEASE_INTEGRITY.md) | как проверить сборку и хеши |
+| [AI_TRIAGE.md](docs/AI_TRIAGE.md) | как разбирается отчёт без владельца |
 
 ## Состояние
 
