@@ -1,4 +1,4 @@
-﻿🇬🇧 **English** — below.  🇷🇺 **[Русская версия](#ru)** — ниже.
+🇬🇧 **English** — below.  🇷🇺 **[Русская версия](#ru)** — ниже.
 
 # Gothic 1 Remake Co-op
 
@@ -18,7 +18,7 @@ Not affiliated with the game's publisher or developers. Free.
 
 ## Installation
 
-1. Unpack `Gothic1Coop-Setup-0.5.3.zip`
+1. Unpack `Gothic1Coop-Setup-0.5.4.6.zip`
 2. Run `Setup.cmd` → "Install"
 3. Start the game with the **"Gothic 1 Remake Co-op"** shortcut on the desktop
 
@@ -48,19 +48,15 @@ computer name and user name are replaced automatically.
 | Document | Contents |
 |---|---|
 | [HOW_TO_PLAY.md](docs/HOW_TO_PLAY.md) | how to install and play |
-| [TWO_PC_TEST.md](docs/TWO_PC_TEST.md) | network, test order, what to send back |
-| [TWO_PC_CHECKLIST.md](docs/TWO_PC_CHECKLIST.md) | step-by-step checklist for the night of testing |
+| [SECURITY.md](SECURITY.md) | security notice, what the mod opens, how to report |
 | [ANTIVIRUS.md](docs/ANTIVIRUS.md) | false positives, exclusions, hashes |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | common errors |
-| [BUGS.md](docs/BUGS.md) | known issues |
-| [releases/0.5.3.md](docs/releases/0.5.3.md) | notes for the current build |
-| [RELEASE_INTEGRITY.md](docs/RELEASE_INTEGRITY.md) | how to verify the build and hashes |
-| [AI_TRIAGE.md](docs/AI_TRIAGE.md) | how a report is triaged without the owner |
+| [releases/0.5.4.6.md](docs/releases/0.5.4.6.md) | notes for the current build |
 
 ## Status
 
-Beta. Working: connection, movement, items, chests, death, F9, time of day, quests, trading, sleeping.
-The chapter is not synchronised; known visual defects are listed in `BUGS.md`.
+Beta. Working: connection, movement, items, chests, death, F9, time of day, weather, chapters, quests, trading, sleeping.
+Known problems are listed in the release notes.
 
 ---
 
@@ -84,7 +80,7 @@ The chapter is not synchronised; known visual defects are listed in `BUGS.md`.
 
 ## Установка
 
-1. Распаковать архив `Gothic1Coop-Setup-0.5.3.zip`
+1. Распаковать архив `Gothic1Coop-Setup-0.5.4.6.zip`
 2. Запустить `Setup.cmd` → «Установить»
 3. Запускать игру ярлыком **«Gothic 1 Remake Co-op»** с рабочего стола
 
@@ -114,16 +110,12 @@ The chapter is not synchronised; known visual defects are listed in `BUGS.md`.
 | Документ | О чём |
 |---|---|
 | [HOW_TO_PLAY.md](docs/HOW_TO_PLAY.md) | как установить и играть |
-| [TWO_PC_TEST.md](docs/TWO_PC_TEST.md) | сеть, порядок проверок, что прислать |
-| [TWO_PC_CHECKLIST.md](docs/TWO_PC_CHECKLIST.md) | чек-лист на вечер теста |
+| [SECURITY.md](SECURITY.md) | уведомление о безопасности, что открывает мод, как сообщить |
 | [ANTIVIRUS.md](docs/ANTIVIRUS.md) | ложные срабатывания, исключения, хеши |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | типичные ошибки |
-| [BUGS.md](docs/BUGS.md) | известные проблемы |
-| [releases/0.5.3.md](docs/releases/0.5.3.md) | заметки к текущей сборке |
-| [RELEASE_INTEGRITY.md](docs/RELEASE_INTEGRITY.md) | как проверить сборку и хеши |
-| [AI_TRIAGE.md](docs/AI_TRIAGE.md) | как разбирается отчёт без владельца |
+| [releases/0.5.4.6.md](docs/releases/0.5.4.6.md) | заметки к текущей сборке |
 
 ## Состояние
 
-Бета. Работает связь, движение, предметы, сундуки, смерть, F9, время суток, задания, торговля, сон.
-Не синхронизируется глава; есть известные визуальные дефекты (см. `BUGS.md`).
+Бета. Работает связь, движение, предметы, сундуки, смерть, F9, время суток, погода, главы, задания, торговля, сон.
+Известные проблемы — в заметках к релизу.

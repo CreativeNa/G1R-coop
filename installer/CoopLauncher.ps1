@@ -37,7 +37,7 @@ function Show-Error([string]$text) {
 }
 
 function Read-Settings {
-    $s = @{ settle = 4; port = 40001; role = 'auto'; save = 1; discovery = 40002; saveport = 40003; extra_args = ''; ready = 0 }
+    $s = @{ settle = 4; port = 40001; role = 'auto'; save = 1; discovery = 40002; saveport = 40003; extra_args = ''; ready = 0; diag_bridge = 0; diag_token = '' }
     $f = Join-Path $root 'settings.ini'
     if (-not (Test-Path -LiteralPath $f)) { return $s }
     foreach ($line in Get-Content -LiteralPath $f) {
@@ -47,6 +47,8 @@ function Read-Settings {
         elseif ($line -match '^\s*role\s*=\s*(\w+)') { $s.role = $matches[1].ToLower() }
         elseif ($line -match '^\s*save_transfer\s*=\s*(\d)') { $s.save = [int]$matches[1] }
         elseif ($line -match '^\s*extra_args\s*=\s*(.+)$') { $s.extra_args = $matches[1].Trim() }
+        elseif ($line -match '^\s*diag_bridge\s*=\s*(\d)') { $s.diag_bridge = [int]$matches[1] }
+        elseif ($line -match '^\s*diag_token\s*=\s*(\S+)') { $s.diag_token = $matches[1] }
 
     }
     return $s
@@ -232,13 +234,16 @@ function Test-ModFirewall([string]$gameExe) {
     $seat = if ($role -eq 'guest') { 1 } else { 0 }
     $gameArgs = "-no-intro-cinematic -nosplash -CoopSeat=$seat"
     if ($cfg.extra_args) { $gameArgs = "$gameArgs $($cfg.extra_args)" }
-    # the diagnostic bridge: the host can fetch this PC's logs without anybody starting anything
+    # the diagnostic bridge is OFF by default. It opens TCP 40004 (logs out, module files in), so it is only for a developer who sets
+    # settings.ini: diag_bridge = 1 and diag_token = <a secret of 16+ characters>; without a token it never starts (the same token is needed to talk to it)
     try {
         $dl = Join-Path $tools 'diag_link.ps1'
-        if (Test-Path -LiteralPath $dl) {
-            $dlArgs = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$dl`" serve -Minutes 480"
+        if ([int]$cfg.diag_bridge -ne 1) { Log 'diag link is off (settings.ini diag_bridge = 0)' }
+        elseif (-not $cfg.diag_token -or $cfg.diag_token.Length -lt 16) { Log 'diag link NOT started: diag_token in settings.ini must be at least 16 characters' }
+        elseif (Test-Path -LiteralPath $dl) {
+            $dlArgs = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$dl`" serve -Minutes 480 -Token `"$($cfg.diag_token)`""
             $dlProc = Start-Process powershell -ArgumentList $dlArgs -WindowStyle Hidden -PassThru
-            Log "diag link serving on TCP 40004, pid $($dlProc.Id)"
+            Log "diag link serving on TCP 40004 with a token, pid $($dlProc.Id)"
         } else { Log 'diag link is not installed' }
     } catch { Log "diag link failed to start: $($_.Exception.Message)" }
 

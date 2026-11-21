@@ -4,8 +4,10 @@
 #   guest PC:  .\tools\diag_link.ps1 serve                 (leave it running while you play)
 #   host PC:   .\tools\diag_link.ps1 fetch -Peer 26.x.x.x  (writes native\build\guest_report_<time>.json)
 #
-# Read-only: it sends the tail of the logs and a few state files, nothing is written on the guest. TCP 40004 by
-# default; -Token <word> on both sides keeps a reachable port from answering strangers.
+# SECURITY: serving needs a secret -Token of 16+ characters on both sides (it refuses to start without one) and is a developer tool: the
+# launcher starts it only when settings.ini has diag_bridge = 1 and diag_token. It sends the tail of the logs and a few state files (no PC or
+# user name), and it accepts the seven mod modules for hot reload (PUT) - whoever has the token can run code in the game, so keep the token secret.
+# TCP 40004 by default.
 param(
     [Parameter(Mandatory = $true, Position = 0)][ValidateSet('serve', 'fetch', 'upload')][string]$Mode,
     [string]$Peer = '127.0.0.1',
@@ -16,6 +18,7 @@ param(
     [string]$File = ''
 )
 $ErrorActionPreference = 'Stop'
+if ($Mode -eq 'serve' -and (-not $Token -or $Token.Length -lt 16)) { 'diag_link: serving needs -Token with at least 16 characters (it also accepts module files, so it must not be open). Not started.'; exit 2 }
 $root = Split-Path -Parent $PSScriptRoot
 
 function Collect-State([int]$lines) {
@@ -23,8 +26,6 @@ function Collect-State([int]$lines) {
     $logs = Join-Path $env:LOCALAPPDATA 'G1RCoop\logs'
     $state = [ordered]@{
         time        = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-        host        = $env:COMPUTERNAME
-        user        = $env:USERNAME
         processes   = @()
         coopdll_log = ''
         launcher    = ''
@@ -48,7 +49,7 @@ function Collect-State([int]$lines) {
     $i = Join-Path $logs 'install.log'
     if (Test-Path $i) { $state.install = (Get-Content $i -Tail 40 -ErrorAction SilentlyContinue) -join "`n" }
     $sm = Join-Path $env:LOCALAPPDATA 'G1RCoop\settings.ini'
-    if (Test-Path $sm) { $state.settings = [string](Get-Content -LiteralPath $sm -Raw) }
+    if (Test-Path $sm) { $state.settings = ([string](Get-Content -LiteralPath $sm -Raw)) -replace '(?im)^\s*diag_token\s*=.*$', 'diag_token = (hidden)' }
     $cn = Join-Path $app 'connect.txt'
     if (Test-Path $cn) { $state.connect = ([string](Get-Content -LiteralPath $cn -Raw)).Trim() }
     $md = Join-Path $app 'modules'
@@ -111,7 +112,7 @@ if ($Mode -eq 'serve') {
                 $tok = ''; $name = ''; $size = 0
                 if ($parts.Count -ge 3) { $tok = $parts[0]; $name = $parts[1]; [void][int]::TryParse($parts[2], [ref]$size) }
                 elseif ($parts.Count -eq 2) { $name = $parts[0]; [void][int]::TryParse($parts[1], [ref]$size) }
-                if ($Token -and $tok -ne $Token) {
+                if ($tok -ne $Token) {
                     $b0 = [System.Text.Encoding]::ASCII.GetBytes("NO bad token`n"); $stream.Write($b0,0,$b0.Length); $stream.Flush()
                     "  refused upload: bad token"; $client.Close(); continue
                 }
@@ -139,7 +140,7 @@ if ($Mode -eq 'serve') {
                 }
                 $client.Close(); continue
             }
-            if ($Token -and $request -ne "DIAG $Token") { "  refused: bad token"; $client.Close(); continue }
+            if ($request -ne "DIAG $Token") { "  refused: bad token"; $client.Close(); continue }
             $json = (Collect-State $LogLines) | ConvertTo-Json -Depth 5 -Compress
             $writer = New-Object System.IO.StreamWriter($stream)
             $writer.WriteLine("OK")
@@ -185,7 +186,7 @@ $file = Join-Path $outDir ("guest_report_" + (Get-Date -Format 'yyyyMMdd_HHmmss'
 $json | Set-Content -LiteralPath $file -Encoding utf8
 $state = $json | ConvertFrom-Json
 "guest report saved: $file"
-"host    : $($state.host) / $($state.user)"
+"time    : $($state.time)"
 "time    : $($state.time)"
 "process : " + ((@($state.processes) | ForEach-Object { "pid $($_.pid) [$($_.title)] $($_.memory_mb) MB" }) -join '; ')
 "connect : " + ($(if ($state.connect) { ([string]$state.connect).Trim() } else { '-' }))

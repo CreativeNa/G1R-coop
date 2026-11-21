@@ -21,7 +21,12 @@ if ($All) { $build = $mods } else { $build = @($Module) }
 $failed = 0
 foreach ($m in $build) {
     "=== $m ==="
-    & (Join-Path $PSScriptRoot '..\native\build_module.bat') $m 2>&1 | Select-String -Pattern ': error' | ForEach-Object { "  " + $_.Line.Trim() }
+    # through cmd /c: the harmless "vswhere.exe is not recognized" line on stderr must not become a terminating error under $ErrorActionPreference = 'Stop'
+    $bat = (Resolve-Path (Join-Path $PSScriptRoot '..\native\build_module.bat')).Path
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    $bout = cmd /c "`"$bat`" $m" 2>&1 | Out-String
+    $ErrorActionPreference = $eap
+    $bout -split "`r?`n" | Where-Object { $_ -match ': error' } | ForEach-Object { "  " + $_.Trim() }
     if ($LASTEXITCODE -ne 0) { "  build FAILED"; $failed++; continue }
     $src = Join-Path $root ("native\build\modules\$m.dll")
     if (-not (Test-Path -LiteralPath $src)) { "  $src missing"; $failed++; continue }

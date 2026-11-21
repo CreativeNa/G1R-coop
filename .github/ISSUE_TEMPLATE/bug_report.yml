@@ -1,4 +1,4 @@
-﻿name: Сообщение о проблеме
+name: Сообщение о проблеме
 description: Что-то не работает или работает неправильно
 labels: [bug]
 body:
@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: Версия мода
-      placeholder: 0.5.3
+      placeholder: 0.5.4.6
     validations: { required: true }
   - type: dropdown
     id: role
