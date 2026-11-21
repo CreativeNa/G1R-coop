@@ -4,10 +4,7 @@
 #   guest PC:  .\tools\diag_link.ps1 serve                 (leave it running while you play)
 #   host PC:   .\tools\diag_link.ps1 fetch -Peer 26.x.x.x  (writes native\build\guest_report_<time>.json)
 #
-# SECURITY: serving needs a secret -Token of 16+ characters on both sides (it refuses to start without one) and is a developer tool: the
-# launcher starts it only when settings.ini has diag_bridge = 1 and diag_token. It sends the tail of the logs and a few state files (no PC or
-# user name), and it accepts the seven mod modules for hot reload (PUT) - whoever has the token can run code in the game, so keep the token secret.
-# TCP 40004 by default.
+# Developer tool, off by default: serving needs a secret -Token of 16+ characters (settings.ini: diag_bridge = 1, diag_token). TCP 40004 by default.
 param(
     [Parameter(Mandatory = $true, Position = 0)][ValidateSet('serve', 'fetch', 'upload')][string]$Mode,
     [string]$Peer = '127.0.0.1',
