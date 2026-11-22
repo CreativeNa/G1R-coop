@@ -4,7 +4,10 @@
 #   guest PC:  .\tools\diag_link.ps1 serve                 (leave it running while you play)
 #   host PC:   .\tools\diag_link.ps1 fetch -Peer 26.x.x.x  (writes native\build\guest_report_<time>.json)
 #
-# Developer tool, off by default: serving needs a secret -Token of 16+ characters (settings.ini: diag_bridge = 1, diag_token). TCP 40004 by default.
+# SECURITY: serving needs a secret -Token of 16+ characters on both sides (it refuses to start without one) and is a developer tool: the
+# launcher starts it only when settings.ini has diag_bridge = 1 and diag_token. It sends the tail of the logs and a few state files (no PC or
+# user name), and it accepts the seven mod modules for hot reload (PUT) - whoever has the token can run code in the game, so keep the token secret.
+# TCP 40004 by default.
 param(
     [Parameter(Mandatory = $true, Position = 0)][ValidateSet('serve', 'fetch', 'upload')][string]$Mode,
     [string]$Peer = '127.0.0.1',
@@ -82,6 +85,17 @@ if ($Mode -eq 'upload') {
     if ($answer -like 'OK*') { exit 0 } else { exit 1 }
 }
 
+# Only addresses of a private VPN room or a home network may talk to this service: loopback, 10/8, 172.16/12, 192.168/16, 169.254/16,
+# Radmin VPN 26/8, Hamachi 25/8, Tailscale/CGNAT 100.64/10. Everything else is dropped before a byte is read. network_any.txt in the
+# mod's app folder switches this off (a PC with a public address and a forwarded port).
+function Test-AllowedPeer($ep) {
+    if (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'G1RCoop\app\network_any.txt')) { return $true }
+    $ip = $ep.Address; if ($ip.IsIPv4MappedToIPv6) { $ip = $ip.MapToIPv4() }
+    if ([Net.IPAddress]::IsLoopback($ip)) { return $true }
+    if ($ip.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork) { return $false }
+    $b = $ip.GetAddressBytes(); $a = [int]$b[0]; $c = [int]$b[1]
+    return ($a -eq 10) -or ($a -eq 172 -and $c -ge 16 -and $c -le 31) -or ($a -eq 192 -and $c -eq 168) -or ($a -eq 169 -and $c -eq 254) -or ($a -eq 26) -or ($a -eq 25) -or ($a -eq 100 -and $c -ge 64 -and $c -le 127)
+}
 if ($Mode -eq 'serve') {
     $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Any, $Port)
     $listener.Start()
@@ -91,6 +105,7 @@ if ($Mode -eq 'serve') {
     while ((Get-Date) -lt $deadline) {
         if (-not $listener.Pending()) { Start-Sleep -Milliseconds 300; continue }
         $client = $listener.AcceptTcpClient()
+        if (-not (Test-AllowedPeer $client.Client.RemoteEndPoint)) { "  dropped a client from an address range that is not allowed"; $client.Close(); continue }
         try {
             $stream = $client.GetStream()
             $client.ReceiveTimeout = 20000

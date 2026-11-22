@@ -6,6 +6,7 @@
 # NOT included: save games, screenshots, any game file, passwords, anything outside the mod folder. Read summary.txt in the zip before you send it.
 param([string]$Note = "", [int]$MaxLogMB = 20, [string]$OutDir = "")
 $ErrorActionPreference = "Stop"
+if (-not $Note -and $env:G1R_NOTE) { $Note = $env:G1R_NOTE }          # set by the report .bat: the text never passes through a command line
 $root = Split-Path $PSScriptRoot -Parent
 # Two layouts exist: the portable folder (native\build next to tools\) and the installed one (the launcher puts
 # everything in %LOCALAPPDATA%\G1RCoop\app). Testers use the installer, so the installed log has to win - otherwise the
@@ -18,11 +19,14 @@ $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $work = Join-Path $env:TEMP ("coop_report_" + $stamp)
 New-Item -ItemType Directory -Force $work | Out-Null
 
-$pc = $env:COMPUTERNAME; $user = $env:USERNAME
+$pc = $env:COMPUTERNAME; $user = $env:USERNAME; $profLeaf = Split-Path -Leaf $env:USERPROFILE          # the profile folder can be named differently from the account
 function Scrub([string]$t) {
     if (-not $t) { return $t }
     $t = [regex]::Replace($t, "\b\d{1,3}(\.\d{1,3}){3}\b", "x.x.x.x")
+    $t = [regex]::Replace($t, "(?<![0-9A-Za-z:])(?:[0-9A-Fa-f]{1,4}:){3,7}[0-9A-Fa-f]{1,4}(?![0-9A-Za-z:])", "x:x:x:x")           # IPv6 (a clock time has only three groups and is left alone)
+    $t = [regex]::Replace($t, "(?<![0-9A-Za-z])(?=[0-9A-Fa-f:]*[0-9])[0-9A-Fa-f:]*::[0-9A-Fa-f:]*(?![0-9A-Za-z])", "x:x::x")           # compressed IPv6 (needs a digit: Class::Function names are left alone)
     if ($pc) { $t = [regex]::Replace($t, [regex]::Escape($pc), "<PC>", "IgnoreCase") }
+    if ($profLeaf -and $profLeaf -ne $user) { $t = [regex]::Replace($t, [regex]::Escape($profLeaf), "<USER>", "IgnoreCase") }          # the longer name first, so a user name that is part of it does not leave a tail
     if ($user) { $t = [regex]::Replace($t, [regex]::Escape($user), "<USER>", "IgnoreCase") }
     return $t
 }

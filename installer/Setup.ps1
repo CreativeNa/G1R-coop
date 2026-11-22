@@ -69,7 +69,7 @@ function Get-DefenderExclusion {
     try { return @((Get-MpPreference -ErrorAction Stop).ExclusionPath | Where-Object { $_ }) } catch { return @() }
 }
 
-function Ensure-DefenderExclusion([string]$path) {
+function Ensure-DefenderExclusion([string]$path) {          # called with the ONE file that has to be left alone (app\inject.exe), never the whole folder
     $have = Get-DefenderExclusion
     if ($have -contains $path) { Write-Log "defender exclusion already present: $path"; return $true }
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -210,6 +210,7 @@ function Install-Mod([string]$exe) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'CoopLauncher.ps1') -Destination (Join-Path $root 'CoopLauncher.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall.ps1') -Destination (Join-Path $root 'Uninstall.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'FindGame.ps1') -Destination (Join-Path $root 'FindGame.ps1') -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ReadyWindow.ps1') -Destination (Join-Path $root 'ReadyWindow.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'CoopL10n.ps1') -Destination (Join-Path $root 'CoopL10n.ps1') -Force
     # a one-click report for testers: the bat asks for a note, runs collect_logs and opens the folder
     $reportBat = Join-Path $PSScriptRoot 'Собрать отчёт.bat'
@@ -327,7 +328,7 @@ $script:detectedExe = Find-GothicExe
 if ($Silent) {
     if (-not $script:detectedExe) { Write-Log 'silent install: no game found'; exit 2 }
     # silent installs never touch Windows Defender unless asked with -AddDefenderExclusion, and then before unpacking
-    if ($AddDefenderExclusion) { $null = Ensure-DefenderExclusion $root } else { Write-Log 'silent install: defender exclusion not requested, skipping' }
+    if ($AddDefenderExclusion) { $null = Ensure-DefenderExclusion (Join-Path $root 'app\inject.exe') } else { Write-Log 'silent install: defender exclusion not requested, skipping' }
     $null = Install-Mod $script:detectedExe
     if ($env:G1RCOOP_MOD_DESCRIPTOR -eq '1') { Write-ModDescriptor (Get-GothicRoot $script:detectedExe) }
     if (-not $NoShortcuts) { Install-Shortcuts }
@@ -405,14 +406,14 @@ $form.Controls.Add($chkSkipMovies)
 # Off by default on purpose: the installer must not change security settings behind the user's back. The text says
 # exactly which folder and why, and the manual route is offered at the end either way.
 $chkDefenderExclusion = New-Object Windows.Forms.CheckBox
-$chkDefenderExclusion.Text = 'Добавить папку мода в исключения Windows Defender (нужно из-за inject.exe)'
+$chkDefenderExclusion.Text = 'Добавить файл inject.exe в исключения Windows Defender (нужно из-за его назначения)'
 $chkDefenderExclusion.Location = New-Object Drawing.Point(22, 258)
 $chkDefenderExclusion.Size = New-Object Drawing.Size(700, 24)
 $chkDefenderExclusion.Checked = $false
 $form.Controls.Add($chkDefenderExclusion)
 
 $lblDefenderNote = New-Object Windows.Forms.Label
-$lblDefenderNote.Text = 'Антивирус иногда удаляет inject.exe — он внедряет DLL в игру. Исключение только для папки мода, не для диска.'
+$lblDefenderNote.Text = 'Антивирус иногда удаляет inject.exe — он внедряет DLL в игру. Исключение только для этого одного файла, не для папки и не для диска.'
 $lblDefenderNote.Location = New-Object Drawing.Point(40, 280)
 $lblDefenderNote.Size = New-Object Drawing.Size(540, 18)
 $lblDefenderNote.ForeColor = [Drawing.Color]::DimGray
@@ -474,7 +475,7 @@ $btnInstall.Add_Click({
         if ($chkDefenderExclusion.Checked) {
             # before the payload is unpacked: a file that is copied and then deleted by the antivirus leaves a broken mod
             $status.Text = 'Добавление исключения в Windows Defender…'; $progress.Value = 20; $form.Refresh()
-            $null = Ensure-DefenderExclusion $root
+            $null = Ensure-DefenderExclusion (Join-Path $root 'app\inject.exe')
         }
         $status.Text = 'Копирование файлов мода…'; $progress.Value = 30; $form.Refresh()
         $n = Install-Mod $exe
@@ -486,7 +487,7 @@ $btnInstall.Add_Click({
         # an existing descriptor from an older version slows every start by ~45 s: remove it unless asked for
         try { Remove-ModDescriptor (Get-GothicRoot $exe) } catch { }
         # the exclusion is offered up front (see the checkbox); here we only remind how to add it by hand
-        $defenderHint = if ($chkDefenderExclusion.Checked) { "Исключение Defender добавлено для $root." } else { "Исключение Defender не добавлялось. Если антивирус удалит inject.exe — инструкция в docs\ANTIVIRUS.md (папка $root)." }
+        $defenderHint = if ($chkDefenderExclusion.Checked) { "Исключение Defender добавлено только для файла app\inject.exe." } else { "Исключение Defender не добавлялось. Если антивирус удалит inject.exe — инструкция в docs\ANTIVIRUS.md (папка $root)." }
         Write-Log ("defender: " + $defenderHint)
         if ($chkSkipMovies.Checked) {
             $status.Text = 'Отключение заставок…'; $form.Refresh()

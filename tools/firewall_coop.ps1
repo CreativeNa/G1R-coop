@@ -43,18 +43,20 @@ if ($Action -eq "remove") {
     exit 0
 }
 
+# the rules only let in the ranges of a private VPN room or a home network (Radmin 26/8, Hamachi 25/8, Tailscale 100.64/10, private ranges)
+$allowed = @('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '169.254.0.0/16', '26.0.0.0/8', '25.0.0.0/8', '100.64.0.0/10')
 $udp = @($Port | Where-Object { $_ -le 40002 })     # the game's traffic and the host discovery probe
 $tcp = @($Port | Where-Object { $_ -ge 40003 })     # save transfer and the diagnostic bridge
 if ($udp.Count) {
     Remove-NetFirewallRule -DisplayName "$name (UDP)" -ErrorAction SilentlyContinue
     New-NetFirewallRule -DisplayName "$name (UDP)" -Direction Inbound -Action Allow -Protocol UDP `
-        -LocalPort $udp -Program $GameExe -Profile Any -Description "co-op position, events and trades" | Out-Null
+        -LocalPort $udp -Program $GameExe -Profile Any -RemoteAddress $allowed -Description "co-op position, events and trades" | Out-Null
     "UDP $($udp -join ',') allowed for the game"
 }
 if ($tcp.Count) {
     Remove-NetFirewallRule -DisplayName "$name (save sync)" -ErrorAction SilentlyContinue
     New-NetFirewallRule -DisplayName "$name (save sync)" -Direction Inbound -Action Allow -Protocol TCP `
-        -LocalPort $tcp -Profile Any -Description "savesync.ps1 hands the save games over" | Out-Null
+        -LocalPort $tcp -Profile Any -RemoteAddress $allowed -Description "savesync.ps1 hands the save games over" | Out-Null
     "TCP $($tcp -join ',') allowed (save sync and the diagnostic bridge)"
 }
 "done. This PC is reachable on the addresses listed by: Get-NetIPAddress -AddressFamily IPv4"

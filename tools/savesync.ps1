@@ -27,6 +27,17 @@ function Read-Exact($stream, [long]$count) {
     return , $buf
 }
 
+# Only addresses of a private VPN room or a home network may talk to this service: loopback, 10/8, 172.16/12, 192.168/16, 169.254/16,
+# Radmin VPN 26/8, Hamachi 25/8, Tailscale/CGNAT 100.64/10. Everything else is dropped before a byte is read. network_any.txt in the
+# mod's app folder switches this off (a PC with a public address and a forwarded port).
+function Test-AllowedPeer($ep) {
+    if (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'G1RCoop\app\network_any.txt')) { return $true }
+    $ip = $ep.Address; if ($ip.IsIPv4MappedToIPv6) { $ip = $ip.MapToIPv4() }
+    if ([Net.IPAddress]::IsLoopback($ip)) { return $true }
+    if ($ip.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork) { return $false }
+    $b = $ip.GetAddressBytes(); $a = [int]$b[0]; $c = [int]$b[1]
+    return ($a -eq 10) -or ($a -eq 172 -and $c -ge 16 -and $c -le 31) -or ($a -eq 192 -and $c -eq 168) -or ($a -eq 169 -and $c -eq 254) -or ($a -eq 26) -or ($a -eq 25) -or ($a -eq 100 -and $c -ge 64 -and $c -le 127)
+}
 if ($Mode -eq "serve") {
     if (-not (Test-Path $SaveDir)) { throw "no save folder: $SaveDir" }
     $listener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Any, $Port)
@@ -35,7 +46,9 @@ if ($Mode -eq "serve") {
     $end = (Get-Date).AddMinutes($Minutes)
     while ((Get-Date) -lt $end) {
         if (-not $listener.Pending()) { Start-Sleep -Milliseconds 300; continue }
-        $client = $listener.AcceptTcpClient(); $stream = $client.GetStream(); $stream.ReadTimeout = 15000; $stream.WriteTimeout = 60000
+        $client = $listener.AcceptTcpClient()
+        if (-not (Test-AllowedPeer $client.Client.RemoteEndPoint)) { "dropped a client from an address range that is not allowed"; $client.Close(); continue }
+        $stream = $client.GetStream(); $stream.ReadTimeout = 15000; $stream.WriteTimeout = 60000
         try {
             $hello = Read-Line $stream
             if ($hello -ne ("HELLO " + $Token)) { Send-Line $stream "ERR token"; "refused a client (wrong token)"; continue }
@@ -52,6 +65,11 @@ if ($Mode -eq "serve") {
 }
 
 # ---- fetch ----
+# the host must be an address of a private VPN room or a home network (see Test-AllowedPeer); network_any.txt switches the check off
+$peerAddrs = @(); try { $peerAddrs = @([Net.Dns]::GetHostAddresses($Peer)) } catch { throw "cannot resolve ${Peer}" }
+$okPeer = $false; foreach ($pa in $peerAddrs) { if (Test-AllowedPeer (New-Object Net.IPEndPoint ($pa, 0))) { $okPeer = $true } }
+if (-not $okPeer) { throw "refusing to fetch saves from ${Peer}: that address is not in a private VPN room or home network range" }
+$MaxFiles = 64; $MaxFileBytes = 64MB; $MaxTotalBytes = 256MB
 $client = New-Object Net.Sockets.TcpClient
 $iar = $client.BeginConnect($Peer, $Port, $null, $null)
 if (-not $iar.AsyncWaitHandle.WaitOne(8000)) { throw "cannot reach ${Peer}:$Port (is the host running 'savesync.ps1 serve', is the port open?)" }
@@ -60,8 +78,16 @@ $stream = $client.GetStream(); $stream.ReadTimeout = 60000
 Send-Line $stream ("HELLO " + $Token)
 $head = Read-Line $stream
 if ($head -notmatch "^SAVESYNC1 (\d+)$") { throw "the host answered: $head" }
-$count = [int]$Matches[1]
-$meta = @(); for ($i = 0; $i -lt $count; $i++) { $p = (Read-Line $stream).Split("|"); $meta += [pscustomobject]@{ Name = $p[0]; Size = [long]$p[1]; Ticks = [long]$p[2] } }
+$count = [long]$Matches[1]
+if ($count -lt 0 -or $count -gt $MaxFiles) { throw "the host announced $count files (more than $MaxFiles): refused" }
+$meta = @(); $total = 0L
+for ($i = 0; $i -lt $count; $i++) {
+    $p = (Read-Line $stream).Split("|"); if ($p.Count -lt 3) { throw "bad file header" }
+    $m = [pscustomobject]@{ Name = $p[0]; Size = [long]$p[1]; Ticks = [long]$p[2] }
+    if ($m.Size -lt 0 -or $m.Size -gt $MaxFileBytes) { throw "the host announced a file of $($m.Size) bytes (limit $MaxFileBytes): refused" }
+    $total += $m.Size; if ($total -gt $MaxTotalBytes) { throw "the host announced more than $MaxTotalBytes bytes in all: refused" }
+    $meta += $m
+}
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("savesync_" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory $tmp | Out-Null
 foreach ($m in $meta) {
@@ -70,11 +96,15 @@ foreach ($m in $meta) {
 }
 $client.Close()
 "received $count files into a temporary folder; replacing the saves in $SaveDir"
-if (Test-Path $SaveDir) { $bk = $SaveDir + "_backup_" + (Get-Date -Format "yyyyMMdd_HHmmss"); Copy-Item $SaveDir $bk -Recurse; "your old saves are in $bk" } else { New-Item -ItemType Directory -Force $SaveDir | Out-Null }
+if (Test-Path $SaveDir) {
+    $bk = $SaveDir + "_backup_" + (Get-Date -Format "yyyyMMdd_HHmmss"); Copy-Item $SaveDir $bk -Recurse; "your old saves are in $bk"
+    $old = @(Get-ChildItem -LiteralPath (Split-Path -Parent $SaveDir) -Directory -Filter ((Split-Path -Leaf $SaveDir) + "_backup_*") -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -Skip 3)
+    foreach ($o in $old) { Remove-Item -LiteralPath $o.FullName -Recurse -Force -ErrorAction SilentlyContinue }          # only the three newest backups are kept
+} else { New-Item -ItemType Directory -Force $SaveDir | Out-Null }
 foreach ($m in $meta) {
     $dst = Join-Path $SaveDir $m.Name
     Copy-Item (Join-Path $tmp $m.Name) $dst -Force
-    (Get-Item $dst).LastWriteTimeUtc = [DateTime]::new($m.Ticks, [DateTimeKind]::Utc)           # "Continue" loads the newest file: keep the host's order
+    if ($m.Ticks -gt 0 -and $m.Ticks -lt [DateTime]::MaxValue.Ticks) { (Get-Item $dst).LastWriteTimeUtc = [DateTime]::new($m.Ticks, [DateTimeKind]::Utc) }           # "Continue" loads the newest file: keep the host's order
 }
 Remove-Item $tmp -Recurse -Force
 $newest = $meta | Where-Object { $_.Name -match "^G1R-" } | Sort-Object Ticks -Descending | Select-Object -First 1

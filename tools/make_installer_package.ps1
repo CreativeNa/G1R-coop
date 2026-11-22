@@ -17,7 +17,7 @@ Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage, "$stage\payload\modules" | Out-Null
 
 # installer scripts
-foreach ($f in 'Setup.cmd', 'Setup.ps1', 'CoopLauncher.ps1', 'Uninstall.ps1', 'FindGame.ps1') {
+foreach ($f in 'Setup.cmd', 'Setup.ps1', 'CoopLauncher.ps1', 'Uninstall.ps1', 'FindGame.ps1', 'ReadyWindow.ps1') {
     $src = Join-Path $root "installer\$f"
     if (-not (Test-Path -LiteralPath $src)) { throw "installer file missing: $src" }
     Copy-Item -LiteralPath $src -Destination $stage -Force

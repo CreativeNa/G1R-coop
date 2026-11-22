@@ -10,31 +10,29 @@
 игры и ищет адреса в памяти, поэтому эвристика антивирусов видит в нём «инжектор». Ничего вредоносного мод не делает:
 не выходит в интернет, кроме прямого UDP-соединения с компьютером второго игрока, и не трогает файлы игры.
 
-**Ничего не отключайте.** Добавьте два исключения вручную — этого достаточно.
+**Ничего не отключайте.** Достаточно одного исключения: только для файла `inject.exe`, не для папки.
 
 ## Как добавить исключение в Defender
 
 1. Пуск → «Безопасность Windows» → «Защита от вирусов и угроз».
 2. «Управление настройками» → «Исключения» → «Добавить или удалить исключения».
-3. «Добавить исключение» → **Папка** → выбрать:
-   `%LOCALAPPDATA%\G1RCoop`  (полный путь: `C:\Users\<ваше имя>\AppData\Local\G1RCoop`)
-4. Ещё раз «Добавить исключение» → **Файл** → выбрать:
-   `%LOCALAPPDATA%\G1RCoop\app\inject.exe`
-5. Готово. Перезапускать ничего не нужно, повторите установку/запуск.
+3. «Добавить исключение» → **Файл** → выбрать:
+   `%LOCALAPPDATA%\G1RCoop\app\inject.exe`  (полный путь: `C:\Users\<ваше имя>\AppData\Local\G1RCoop\app\inject.exe`)
+4. Готово. Перезапускать ничего не нужно, повторите установку/запуск.
 
 Через PowerShell (от администратора) то же самое:
 
 ```powershell
-Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\G1RCoop"
-Add-MpPreference -ExclusionProcess "inject.exe"
+Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\G1RCoop\app\inject.exe"
 ```
 
 Убрать обратно:
 
 ```powershell
-Remove-MpPreference -ExclusionPath "$env:LOCALAPPDATA\G1RCoop"
-Remove-MpPreference -ExclusionProcess "inject.exe"
+Remove-MpPreference -ExclusionPath "$env:LOCALAPPDATA\G1RCoop\app\inject.exe"
 ```
+
+Если раньше вы добавляли исключение на всю папку `%LOCALAPPDATA%\G1RCoop`, лучше убрать его (то же через «Исключения» или `Remove-MpPreference -ExclusionPath "$env:LOCALAPPDATA\G1RCoop"`): в папку, куда пишет обычный пользователь, антивирус должен заглядывать.
 
 ## Как проверить, что файлы не удалены
 
@@ -75,18 +73,18 @@ Get-ChildItem "$env:LOCALAPPDATA\G1RCoop\app" -Recurse -File |
 | 2,5 минуты работы мода под Defender | **чисто**, ни одного события 1116/1117, файлы не тронуты |
 | **0.5.3 (inject.exe с ресурсами версии и манифестом)**: установка + один запуск хоста | **чисто**: LoadLibrary returned 0xa2a20000, 4 модуля мода загружены, за 2,5 минуты **0 событий 1116/1117**, хеши не изменились |
 
-Хеши текущего пакета 0.5.4.6 (SHA-256) — для проверки и для обращения в Microsoft (inject.exe тот же, что в 0.5.3; ядро coopdll_111.dll пересобрано без пути разработчика и с закрытым мостом диагностики):
+Хеши текущего пакета 0.5.4.6 (SHA-256) — для проверки и для обращения в Microsoft (`inject.exe` тот же, что в 0.5.3):
 
 ```
 inject.exe       D4DC8C3294CCB46E09D842388DEC435D59F247969614DC44E5916541B67D5DD2   (142848 байт, с ресурсами версии)
-coopdll_111.dll  1A68AE30AFED6E8773C0B402655F3128FCDCE721EE62649CF2B8AB3C8BC67792
-anim.dll         7833548AEDC64695C51BF2BA9617B25CFCE303F29DBE042FC188F7312B5D6936
-equip.dll        C0AAA83778A8D6771A2427BC95FCD81532AA8E85A11BA94D18AFE01FB66B29E2
-menu.dll         61E502A64757B5678F208E2F9BAD0E34547060C9AB234E557D6234158DC8749C
-npc.dll          78D199A98FEB9DA58DA82CCDA96AB74143DD1E2CD901B32617A221FB37B78521
-pose.dll         FB8D12E25792CB238ECCC6BA38F82C62E1697972D2B83A82D7D705FC9823D793
-probe.dll        F41E44050EF4ECCEBFAB31DD69DD04DA138576D905C0F6190F69647C75412D79
-story.dll        E38C9467F849CBBF5D19E29F2BC643EE8E82C6599DC505B6D8BA136B935788DE
+coopdll_111.dll  7968F4801BC0A440FCC58F90F1573F01D883DB387D759D9FB2F74D9193C70D73
+anim.dll         659D1801E973706AB40FE9C432DA22F124D8312946D87BA6A052E4A9CFFC6F41
+equip.dll        A8A978E675272EE9BEAF311AE843AE65A0858BC0F38E98E271531E3920C4BCE1
+menu.dll         5B41434A8BEAB1DBCEB4E2440F05EAEC70E8F86E395D409A208295C5E9CBD938
+npc.dll          5728DB589DA3A45CD2A930034A321B8EF159BFDC6E21975D261A8A0CB96C752A
+pose.dll         0D9149007322BF2C07CCA90E70548557F58E502230ED2C51196D42B280028400
+probe.dll        8A01C8DA11F56A7BC610339E6F8E0008B05BC36C7CE930D27479CDB82BA5AB8A
+story.dll        9C23BB1E03F281C220677C2CBFD6619B6AA0AFB2F5CD2C1E639C8E3242E51F7C
 ```
 
 Прежний `inject.exe` (пакет 0.5.1, без ресурсов версии) имел SHA-256

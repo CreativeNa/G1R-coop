@@ -16,10 +16,11 @@ echo.
 echo   Внизу опишите одной строкой, что случилось и во сколько.
 echo   Можно просто нажать Enter.
 echo.
-set "NOTE="
-set /p "NOTE=Что случилось: "
+set "G1R_NOTE="
+set /p "G1R_NOTE=Что случилось: "
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\collect_logs.ps1" -Note "%NOTE%"
+rem the text goes to the script in an environment variable: it is never parsed as part of a command line
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\collect_logs.ps1"
 if errorlevel 1 goto manual
 
 echo.

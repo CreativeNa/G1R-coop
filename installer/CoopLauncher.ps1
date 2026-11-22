@@ -55,23 +55,34 @@ function Read-Settings {
 }
 
 # Is somebody already hosting? The same probe the in-game "Join co-op" button sends.
+# Only a private VPN room or a home network is a place to play in: loopback, 10/8, 172.16/12, 192.168/16, 169.254/16, Radmin 26/8, Hamachi 25/8,
+# Tailscale/CGNAT 100.64/10. network_any.txt in the app folder switches the check off.
+function Test-AllowedAddress([System.Net.IPAddress]$ip) {
+    if (Test-Path -LiteralPath (Join-Path $app 'network_any.txt')) { return $true }
+    if ($ip.IsIPv4MappedToIPv6) { $ip = $ip.MapToIPv4() }
+    if ([System.Net.IPAddress]::IsLoopback($ip)) { return $true }
+    if ($ip.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) { return $false }
+    $b = $ip.GetAddressBytes(); $a1 = [int]$b[0]; $c1 = [int]$b[1]
+    return ($a1 -eq 10) -or ($a1 -eq 172 -and $c1 -ge 16 -and $c1 -le 31) -or ($a1 -eq 192 -and $c1 -eq 168) -or ($a1 -eq 169 -and $c1 -eq 254) -or ($a1 -eq 26) -or ($a1 -eq 25) -or ($a1 -eq 100 -and $c1 -ge 64 -and $c1 -le 127)
+}
+
 function Find-Host([int]$discoveryPort, [int]$timeoutMs = 2500) {
     try {
         $udp = New-Object System.Net.Sockets.UdpClient
         $udp.Client.ReceiveTimeout = 250
         $udp.EnableBroadcast = $true
         $probe = [Text.Encoding]::ASCII.GetBytes('COOP-WHO?')
-        $targets = @('255.255.255.255', 'x.x.x.x')
+        $targets = @('255.255.255.255')
         try {
             foreach ($a in [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()) {
                 foreach ($u in $a.GetIPProperties().UnicastAddresses) {
-                    $ip = $u.Address.IPv4ToString()
-                    if ($ip -and $ip -notlike '127.*' -and $ip -notlike '169.*') {
-                        $targets += (($ip -split '\.')[0..2] -join '.') + '.255'
-                    }
+                    if ($u.Address.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork -or -not $u.IPv4Mask) { continue }
+                    $ipb = $u.Address.GetAddressBytes(); $mb = $u.IPv4Mask.GetAddressBytes()
+                    if ($ipb[0] -eq 127 -or ($ipb[0] -eq 169 -and $ipb[1] -eq 254)) { continue }
+                    $bc = for ($i = 0; $i -lt 4; $i++) { $ipb[$i] -bor (255 -bxor $mb[$i]) }          # the directed broadcast of that network (Radmin is a /8)
+                    $targets += ($bc -join '.')
                 }
-            }
-        } catch { }
+            }        } catch { }
         $deadline = (Get-Date).AddMilliseconds($timeoutMs)
         $sent = $false
         while ((Get-Date) -lt $deadline) {
@@ -86,6 +97,7 @@ function Find-Host([int]$discoveryPort, [int]$timeoutMs = 2500) {
                 $data = $udp.Receive([ref]$ep)
                 $text = [Text.Encoding]::ASCII.GetString($data)
                 if ($text -match '^COOP-HOST\s+\d+\s+(\d+)') {
+                    if (-not (Test-AllowedAddress $ep.Address)) { Log "discovery: ignored an answer from $($ep.Address) (address range not allowed)"; continue }
                     $udp.Close()
                     return @{ ip = $ep.Address.ToString(); port = [int]$matches[1] }
                 }
@@ -97,18 +109,7 @@ function Find-Host([int]$discoveryPort, [int]$timeoutMs = 2500) {
 }
 
 
-# Windows Defender deletes inject.exe (it exists to put a DLL into a running game). Without it nothing can be
-# injected, so before launching we make sure a narrow exclusion for our own folder is in place.
-function Ensure-DefenderExclusionForInject {
-    try {
-        $have = @((Get-MpPreference -ErrorAction Stop).ExclusionPath | Where-Object { $_ })
-        if ($have -contains $root) { return $true }
-        $cmd = "Add-MpPreference -ExclusionPath '$root'; exit 0"
-        $pr = Start-Process powershell -Verb RunAs -Wait -PassThru -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"$cmd`""
-        Log "defender exclusion requested for $root, exit $($pr.ExitCode)"
-        return ($pr.ExitCode -eq 0)
-    } catch { Log "defender exclusion failed: $($_.Exception.Message)"; return $false }
-}
+# (the launcher never touches Windows Defender: the installer asks once, see Setup.ps1 and docs\ANTIVIRUS.md)
 
 try {
 
@@ -261,46 +262,10 @@ function Test-ModFirewall([string]$gameExe) {
 
     # ---- ready window for the host: the player should not have to read the window title to know the friend may join
     if ($role -eq 'host' -and $cfg.ready -ne 0) {
-        $readyText  = (T 'ready')  -replace "'", "''"
-        $joinedText = (T 'joined') -replace "'", "''"
-        $closeText  = (T 'close')  -replace "'", "''"
-        $logPath    = (Join-Path $app 'coopdll.log') -replace "'", "''"
-        $readyScript = @"
-Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-`$f = New-Object Windows.Forms.Form
-`$f.Text = 'Gothic 1 Remake - co-op'
-`$f.Size = New-Object Drawing.Size(430, 125)
-`$f.TopMost = `$true
-`$f.StartPosition = 'CenterScreen'
-`$l = New-Object Windows.Forms.Label
-`$l.Text = '$readyText'
-`$l.Font = New-Object Drawing.Font('Segoe UI', 11)
-`$l.AutoSize = `$false
-`$l.Size = New-Object Drawing.Size(395, 45)
-`$l.Location = New-Object Drawing.Point(12, 12)
-`$f.Controls.Add(`$l)
-`$b = New-Object Windows.Forms.Button
-`$b.Text = '$closeText'
-`$b.Size = New-Object Drawing.Size(110, 28)
-`$b.Location = New-Object Drawing.Point(300, 48)
-`$b.Add_Click({ `$f.Close() })
-`$f.Controls.Add(`$b)
-`$t = New-Object Windows.Forms.Timer
-`$t.Interval = 1000
-`$t.Add_Tick({
-    try {
-        `$tail = Get-Content -LiteralPath '$logPath' -Tail 100 -ErrorAction SilentlyContinue
-        if (`$tail -match 'contact 1') { `$l.Text = '$joinedText'; `$l.ForeColor = [Drawing.Color]::DarkGreen; `$t.Stop(); `$c = New-Object Windows.Forms.Timer; `$c.Interval = 5000; `$c.Add_Tick({ `$c.Stop(); `$f.Close() }); `$c.Start() }
-    } catch { }
-})
-`$t.Start()
-[void]`$f.ShowDialog()
-"@
         try {
-            $tmpReady = Join-Path $env:TEMP ('g1r_ready_' + $PID + '.ps1')
-            Set-Content -LiteralPath $tmpReady -Value $readyScript -Encoding UTF8
-            Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$tmpReady`"" -WindowStyle Hidden | Out-Null
-            Log 'ready window started'
+            $env:G1R_READY_TEXT = (T 'ready'); $env:G1R_JOINED_TEXT = (T 'joined'); $env:G1R_CLOSE_TEXT = (T 'close'); $env:G1R_LOG_PATH = (Join-Path $app 'coopdll.log')
+            $rw = Join-Path $root 'ReadyWindow.ps1'
+            if (Test-Path -LiteralPath $rw) { Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$rw`"" -WindowStyle Hidden | Out-Null; Log 'ready window started' } else { Log 'ready window script is not installed' }
         } catch { Log "ready window failed: $($_.Exception.Message)" }
     }
 } catch {

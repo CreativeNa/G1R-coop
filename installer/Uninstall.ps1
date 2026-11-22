@@ -5,6 +5,7 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 $root = Split-Path -Parent $PSCommandPath
+if ($root -ne (Join-Path $env:LOCALAPPDATA 'G1RCoop')) { [void][System.Windows.Forms.MessageBox]::Show("Запустите удаление из папки мода (%LOCALAPPDATA%\G1RCoop).", 'Удаление', 'OK', 'Warning'); exit 1 }          # never delete next to a copy of this script that lies somewhere else
 $app = Join-Path $root 'app'
 $logs = Join-Path $root 'logs'
 $settings = Join-Path $root 'settings.ini'
@@ -28,6 +29,7 @@ function Restore-StartupMovies {
     $listFile = Join-Path $dir '_disabled_by_coop.txt'
     if (-not (Test-Path -LiteralPath $listFile)) { return }
     foreach ($n in (Get-Content -LiteralPath $listFile)) {
+        if (@('Alkimia_Logo.bk2', 'Game_Logo.bk2', 'THQNordic_Logo.bk2', 'V_LegalScreen.bk2', 'G1R_Intro.bk2') -notcontains $n) { continue }          # only the five names the installer renamed
         $off = Join-Path $dir "$n.off"
         if (Test-Path -LiteralPath $off) { Rename-Item -LiteralPath $off -NewName $n -ErrorAction SilentlyContinue }
     }
@@ -61,7 +63,8 @@ try {
     Remove-Item -LiteralPath (Join-Path $desktop 'Gothic 1 Remake Co-op.lnk') -Force -ErrorAction SilentlyContinue
     $group = Join-Path ([Environment]::GetFolderPath('Programs')) 'Gothic 1 Remake Co-op'
     Remove-Item -LiteralPath $group -Recurse -Force -ErrorAction SilentlyContinue
-    try { Remove-MpPreference -ExclusionPath $root -ErrorAction Stop } catch { }
+    try { Remove-MpPreference -ExclusionPath (Join-Path $root 'app\inject.exe') -ErrorAction Stop } catch { }
+    try { Remove-MpPreference -ExclusionPath $root -ErrorAction Stop } catch { }          # the folder exclusion of older versions
     Remove-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\G1RCoop' -Recurse -Force -ErrorAction SilentlyContinue
 
     $keep = [System.Windows.Forms.MessageBox]::Show(
